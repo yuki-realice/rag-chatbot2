@@ -1,0 +1,10 @@
+{
+  "python.defaultInterpreterPath": "/Users/yuki/Desktop/rag chatbot2/backend/venv/bin/python",
+  "python.analysis.venvPath": "/Users/yuki/Desktop/rag chatbot2/backend",
+  "python.analysis.venv": "venv",
+  "python.analysis.extraPaths": [
+    "/Users/yuki/Desktop/rag chatbot2/backend"
+  ]
+}
+
+

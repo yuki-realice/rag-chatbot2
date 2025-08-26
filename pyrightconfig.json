@@ -1,0 +1,17 @@
+{
+  "venvPath": "/Users/yuki/Desktop/rag chatbot2/backend",
+  "venv": "venv",
+  "pythonVersion": "3.9",
+  "reportMissingImports": "warning",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "./backend",
+        "/Users/yuki/Desktop/rag chatbot2/backend/venv/lib/python3.9/site-packages"
+      ]
+    }
+  ]
+}
+
+

@@ -1,0 +1,10 @@
+# Node.js 用
+node_modules/
+npm-debug.log
+yarn-debug.log*
+yarn-error.log*
+# ビルド成果物
+dist/
+build/
+# 環境変数ファイル（秘密情報）
+.env
