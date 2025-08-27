@@ -1,0 +1,12 @@
+
+> rag-chatbot-frontend@0.1.0 dev
+> next dev
+
+   ▲ Next.js 14.0.3
+   - Local:        http://localhost:3000
+   - Environments: .env.local
+
+ ✓ Ready in 1180ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1574ms (442 modules)
+ ✓ Compiled in 64ms (225 modules)

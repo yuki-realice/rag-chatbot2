@@ -105,7 +105,7 @@ npm run dev
 
 1. **ドキュメントのアップロード**
    - 左サイドバーのファイルアップロード機能を使用
-   - 対応形式: PDF (.pdf), Markdown (.md, .markdown), テキスト (.txt)
+   - 対応形式: PDF (.pdf), Markdown (.md, .markdown), テキスト (.txt), Excel (.xlsx), スプレッドシート (.csv, .tsv)
 
 2. **インデックス作成**
    - 「インデックス再作成」ボタンをクリック
@@ -121,10 +121,28 @@ npm run dev
 ### RAG設定 (backend/config.py)
 
 - `RAG_EMBEDDING_MODEL`: 埋め込みモデル (デフォルト: text-embedding-3-small)
+- `RAG_EMBEDDING_PROVIDER`: `openai` か `huggingface` を指定（デフォルト: `openai`）
+- `HF_EMBEDDING_MODEL`: Hugging Face の埋め込みモデル名（例: `sentence-transformers/all-MiniLM-L6-v2`）
 - `RAG_CHAT_MODEL`: チャットモデル (デフォルト: gpt-4o-mini)
+- `RAG_CHAT_PROVIDER`: `openai` または `gemini`（デフォルト: `openai`）
+- `GEMINI_API_KEY`: Google Generative AI のAPIキー
+- `GEMINI_MODEL`: Geminiモデル名（例: `gemini-1.5-flash`）
 - `RAG_TOP_K`: 検索する類似文書数 (デフォルト: 4)
 - `RAG_CHUNK_SIZE`: テキスト分割サイズ (デフォルト: 800)
 - `RAG_CHUNK_OVERLAP`: チャンク間のオーバーラップ (デフォルト: 100)
+
+#### Gemini を使う場合の設定例（.env）
+```bash
+RAG_CHAT_PROVIDER=gemini
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-1.5-flash
+```
+
+#### OpenAI を使わず埋め込みもローカルにする例（.env）
+```bash
+RAG_EMBEDDING_PROVIDER=huggingface
+HF_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+```
 
 ## 🧪 テスト
 

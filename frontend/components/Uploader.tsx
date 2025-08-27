@@ -57,7 +57,7 @@ export default function Uploader({ onUploadSuccess }: UploaderProps) {
         <div className="flex items-center space-x-4">
           <input
             type="file"
-            accept=".pdf,.md,.txt,.markdown"
+            accept=".pdf,.md,.txt,.markdown,.xlsx,.csv,.tsv"
             onChange={handleFileUpload}
             disabled={isUploading}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
@@ -97,6 +97,8 @@ export default function Uploader({ onUploadSuccess }: UploaderProps) {
           <li>PDF (.pdf)</li>
           <li>Markdown (.md, .markdown)</li>
           <li>テキスト (.txt)</li>
+          <li>Excel (.xlsx)</li>
+          <li>スプレッドシート (.csv, .tsv)</li>
         </ul>
       </div>
     </div>
