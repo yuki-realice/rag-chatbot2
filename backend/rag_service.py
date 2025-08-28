@@ -1,16 +1,12 @@
 import os
-import tiktoken
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import chromadb
 from chromadb.config import Settings
-from openai import OpenAI
-import openai as openai_module
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.schema import Document
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from pydantic.v1 import SecretStr
-from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_community.vectorstores import Chroma
 from config import Config
@@ -19,52 +15,36 @@ import pandas as pd
 class RAGService:
     def __init__(self):
         self.config = Config()
-        self.client = OpenAI(api_key=self.config.OPENAI_API_KEY)
-
-        # 埋め込みプロバイダを選択（APIキー未設定時は自動でHuggingFaceへフォールバック）
-        provider = getattr(self.config, "RAG_EMBEDDING_PROVIDER", "openai").lower()
-        if provider == "openai" and not self.config.OPENAI_API_KEY:
-            print("WARN: OPENAI_API_KEY が未設定のため、HuggingFace埋め込みへ自動切替します")
-            provider = "huggingface"
-
-        if provider == "huggingface":
-            self._use_hf_embeddings()
-        else:
-            print(f"INFO: Using OpenAI embeddings: {self.config.RAG_EMBEDDING_MODEL}")
-            self.embeddings = OpenAIEmbeddings(
-                model=self.config.RAG_EMBEDDING_MODEL,
-                api_key=self.config.OPENAI_API_KEY
-            )
-        # チャットプロバイダの選択
-        chat_provider = getattr(self.config, "RAG_CHAT_PROVIDER", "openai").lower()
-        if chat_provider == "gemini":
-            if not self.config.GEMINI_API_KEY:
-                print("WARN: GEMINI_API_KEY が未設定です。OpenAIにフォールバックします。")
-                self.llm = ChatOpenAI(
-                    model=self.config.RAG_CHAT_MODEL,
-                    api_key=self.config.OPENAI_API_KEY,
-                    temperature=0.1
-                )
-            else:
-                print(f"INFO: Using Gemini for chat: {self.config.GEMINI_MODEL}")
-                self.llm = ChatGoogleGenerativeAI(
-                    model=self.config.GEMINI_MODEL,
-                    google_api_key=SecretStr(self.config.GEMINI_API_KEY),
-                    temperature=0.1,
-                    client=None,
-                    client_options=None,
-                    transport=None
-                )
-        else:
-            self.llm = ChatOpenAI(
-                model=self.config.RAG_CHAT_MODEL,
-                api_key=self.config.OPENAI_API_KEY,
-                temperature=0.1
-            )
         
-        # ChromaDB初期化
+        # Gemini APIキーチェック
+        if not self.config.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY が設定されていません。.envファイルに設定してください。")
+        
+        # Gemini埋め込みモデルの初期化
+        print(f"INFO: Using Gemini embeddings: {self.config.GEMINI_EMBEDDING_MODEL}")
+        self.embeddings = GoogleGenerativeAIEmbeddings(
+            model=self.config.GEMINI_EMBEDDING_MODEL,
+            google_api_key=SecretStr(self.config.GEMINI_API_KEY),
+            task_type=None,
+            client_options=None,
+            transport=None
+        )
+        
+        # Geminiチャットモデルの初期化
+        print(f"INFO: Using Gemini for chat: {self.config.GEMINI_CHAT_MODEL}")
+        self.llm = ChatGoogleGenerativeAI(
+            model=self.config.GEMINI_CHAT_MODEL,
+            google_api_key=SecretStr(self.config.GEMINI_API_KEY),
+            temperature=0.1,
+            client_options=None,
+            transport=None,
+            client=None
+        )
+        
+        # ChromaDB初期化（絶対パスを使用）
+        persist_dir = str(Path(self.config.CHROMA_STORE_DIR).resolve())
         self.vectorstore = Chroma(
-            persist_directory=self.config.CHROMA_STORE_DIR,
+            persist_directory=persist_dir,
             embedding_function=self.embeddings
         )
         
@@ -72,13 +52,13 @@ class RAGService:
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.config.RAG_CHUNK_SIZE,
             chunk_overlap=self.config.RAG_CHUNK_OVERLAP,
-            length_function=self._tiktoken_len,
+            length_function=self._simple_len,
         )
     
-    def _tiktoken_len(self, text: str) -> int:
-        """tiktokenを使用してトークン数を計算"""
-        encoding = tiktoken.encoding_for_model("gpt-4")
-        return len(encoding.encode(text))
+    def _simple_len(self, text: str) -> int:
+        """シンプルな文字数ベースのトークン数計算（Gemini用）"""
+        # 日本語の場合、おおよそ1文字=1トークンとして計算
+        return len(text)
     
     def _load_document(self, file_path: str) -> str:
         """ドキュメントを読み込み"""
@@ -138,12 +118,24 @@ class RAGService:
         
         print(f"DEBUG: Using columns: {use_columns}")
 
-        # 文字列化（各セルを空白で連結、各行を改行で連結）
-        # すべて文字列型に変換し、空文字を許容
+        # 文字列化（構造化されたフォーマットで各行を変換）
         df_selected = df[use_columns].astype(str)
-        row_texts = df_selected.apply(lambda row: ' '.join([v for v in row if isinstance(v, str) and len(v) > 0]).strip(), axis=1)
-        # 空行は除外
-        row_texts = [t for t in row_texts.tolist() if t]
+        row_texts = []
+        for _, row in df_selected.iterrows():
+            # 構造化されたテキスト形式で企業情報を作成
+            row_data = []
+            for col in use_columns:
+                value = row[col]
+                # 安全な文字列変換と処理
+                str_value = str(value) if value is not None else ""
+                if str_value.strip() and str_value != 'nan':
+                    clean_value = str_value.strip()
+                    row_data.append(f"{col}: {clean_value}")
+            
+            if row_data:  # 空でない行のみ追加
+                row_text = " | ".join(row_data)
+                row_texts.append(row_text)
+        
         result_text = "\n".join(row_texts)
         print(f"DEBUG: Generated text length: {len(result_text)} characters")
         print(f"DEBUG: First 200 chars: {result_text[:200]}")
@@ -184,27 +176,11 @@ class RAGService:
                     # メタデータを準備
                     metadata = [{"source": file_path, "chunk_id": i} for i in range(len(chunks))]
                     
-                    # ベクトルストアに追加（OpenAIの429等が出たらHFへフォールバックして再試行）
-                    try:
-                        self.vectorstore.add_texts(
-                            texts=chunks,
-                            metadatas=metadata
-                        )
-                    except Exception as add_err:
-                        err_msg = str(add_err)
-                        if (
-                            isinstance(add_err, getattr(openai_module, "RateLimitError", Exception))
-                            or "insufficient_quota" in err_msg
-                            or "You exceeded your current quota" in err_msg
-                        ):
-                            print("WARN: OpenAI embeddings failed due to quota. Falling back to HuggingFace and retrying once...")
-                            self._use_hf_embeddings(reinit_vectorstore=True)
-                            self.vectorstore.add_texts(
-                                texts=chunks,
-                                metadatas=metadata
-                            )
-                        else:
-                            raise
+                    # ベクトルストアに追加
+                    self.vectorstore.add_texts(
+                        texts=chunks,
+                        metadatas=metadata
+                    )
                     
                     total_chunks += len(chunks)
                     processed_files.append(file_path)
@@ -226,47 +202,126 @@ class RAGService:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def _use_hf_embeddings(self, reinit_vectorstore: bool = False) -> None:
-        """HuggingFace埋め込みへ切替し、必要に応じてChromaのembedding_functionも更新する"""
-        print(f"INFO: Using HuggingFace embeddings: {self.config.HF_EMBEDDING_MODEL}")
-        self.embeddings = HuggingFaceEmbeddings(model_name=self.config.HF_EMBEDDING_MODEL)
-        if reinit_vectorstore:
-            # 既存のベクトルストアを同じ永続ディレクトリで再初期化
-            self.vectorstore = Chroma(
-                persist_directory=self.config.CHROMA_STORE_DIR,
-                embedding_function=self.embeddings
-            )
-    
+
     def chat(self, message: str) -> Dict[str, Any]:
         """チャット応答を生成"""
         try:
-            # 類似検索
-            docs = self.vectorstore.similarity_search(
-                message,
-                k=self.config.RAG_TOP_K
-            )
+            # まず候補を広めに取得（MMR対応 or 通常検索）
+            candidate_k = max(self.config.RAG_CANDIDATE_K, self.config.RAG_TOP_K)
+            if getattr(self.config, "RAG_USE_MMR", True):
+                # MMR（最大限の関連性と多様性）
+                docs = self.vectorstore.max_marginal_relevance_search(
+                    message,
+                    k=self.config.RAG_TOP_K,
+                    fetch_k=candidate_k,
+                    lambda_mult=self.config.RAG_MMR_DIVERSITY,
+                )
+            else:
+                docs = self.vectorstore.similarity_search(
+                    message,
+                    k=candidate_k,
+                )
             
+            # Chromaコレクションが空（ドキュメント未インデックス化）の場合に備えて早期リターン
+            try:
+                stats = self.vectorstore._collection.count()
+                if not stats or int(stats) == 0:
+                    # 自動インデックス化を試行
+                    ingest_result = self.ingest_documents()
+                    # 再度検索を試みる
+                    candidate_k = max(self.config.RAG_CANDIDATE_K, self.config.RAG_TOP_K)
+                    if getattr(self.config, "RAG_USE_MMR", True):
+                        docs = self.vectorstore.max_marginal_relevance_search(
+                            message,
+                            k=self.config.RAG_TOP_K,
+                            fetch_k=candidate_k,
+                            lambda_mult=self.config.RAG_MMR_DIVERSITY,
+                        )
+                    else:
+                        docs = self.vectorstore.similarity_search(
+                            message,
+                            k=candidate_k,
+                        )
+                    if not docs:
+                        return {
+                            "status": "warning",
+                            "message": "インデックスが空です。左のアップロード→インデックス再作成を実行してください。",
+                            "answer": "該当する情報は見つかりませんでした",
+                            "sources": []
+                        }
+            except Exception:
+                # 内部API形状が変わっている場合は無視して通常フロー
+                pass
+
             if not docs:
-                return {
-                    "status": "warning",
-                    "message": "関連する文書が見つかりませんでした。",
-                    "answer": "申し訳ございませんが、関連する文書が見つかりませんでした。",
-                    "sources": []
-                }
+                # ベクトル検索で0件の場合、簡易キーワード検索でフォールバック
+                try:
+                    all_items = self.vectorstore._collection.get(include=["documents", "metadatas"], limit=100000)
+                    all_docs = (all_items.get("documents") or [])
+                    all_metas = (all_items.get("metadatas") or [])
+                except Exception:
+                    all_docs, all_metas = [], []
+
+                def _keyword_score(text: str, query: str) -> int:
+                    if not text or not query:
+                        return 0
+                    # 日本語向けに、句読点・スペースで簡易分割し、部分一致の総数でスコア化
+                    seps = ['\n', '\t', '、', '。', '，', ',', '．', '.', ' ', '　', ';', '：', ':']
+                    terms = [query]
+                    tmp = query
+                    for s in seps:
+                        tmp = tmp.replace(s, ' ')
+                    terms += [t for t in tmp.split(' ') if t]
+                    score = 0
+                    for t in terms:
+                        score += text.count(t)
+                    return score
+
+                scored = []
+                for txt, md in zip(all_docs, all_metas):
+                    s = _keyword_score(txt or "", message)
+                    if s > 0:
+                        scored.append((s, txt or "", md or {}))
+
+                if scored:
+                    scored.sort(key=lambda x: x[0], reverse=True)
+                    top = scored[: self.config.RAG_TOP_K]
+                    docs = [Document(page_content=txt, metadata=md) for _, txt, md in top]
+                else:
+                    return {
+                        "status": "warning",
+                        "message": "該当する情報は見つかりませんでした",
+                        "answer": "該当する情報は見つかりませんでした",
+                        "sources": []
+                    }
             
-            # コンテキストを構築
-            context = "\n\n".join([doc.page_content for doc in docs])
+            # 検索結果をそのまま使用（再ランキングはGeminiに任せる）
+            reranked_docs = docs[: self.config.RAG_TOP_K]
+
+            # トークン上限に合わせてコンテキストを整形
+            budget = max(256, getattr(self.config, "RAG_MAX_CONTEXT_TOKENS", 2000))
+            selected = []
+            used = 0
+            for d in reranked_docs:
+                t = self._simple_len(d.page_content)
+                if used + t > budget:
+                    continue
+                selected.append(d)
+                used += t
+
+            if not selected:
+                selected = reranked_docs[:1]
+
+            context = "\n\n".join([doc.page_content for doc in selected])
             
-            # プロンプトを構築
-            prompt = f"""以下の文書を参考にして、ユーザーの質問に答えてください。
-
-参考文書:
-{context}
-
-ユーザーの質問: {message}
-
-回答は日本語で、参考文書の内容に基づいて具体的に答えてください。
-参考文書に含まれていない情報については、その旨を明記してください。"""
+            # プロンプトを構築（SYSTEM_PROMPT + USER_PROMPT テンプレート）
+            system_instructions = getattr(self.config, "RAG_SYSTEM_INSTRUCTIONS", "")
+            user_prompt = (
+                f"質問: {message}\n\n"
+                f"コンテキスト:\n{context}\n\n"
+                "上記コンテキストに基づいて、質問に答えてください。"
+            )
+            prompt = f"{system_instructions}\n\n{user_prompt}"
 
             # LLMで回答生成
             response = self.llm.invoke(prompt)
@@ -274,7 +329,7 @@ class RAGService:
             
             # ソース情報を準備
             sources = []
-            for doc in docs:
+            for doc in selected:
                 source = doc.metadata.get("source", "Unknown")
                 sources.append({
                     "source": source,
@@ -290,3 +345,31 @@ class RAGService:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+
+    def prune_index_except(self, keep_filename_contains: str) -> Dict[str, Any]:
+        """メタデータのsourceに含まれるファイルパスのうち、特定の文字列を含まないものを削除
+        keep_filename_contains に一致するもののみ残し、それ以外を削除する。
+        """
+        try:
+            # Chromaのメタデータクエリを利用して、対象外ドキュメントのidsを取得
+            # まず全件から候補を取得（Chromaは直接NOT検索が弱いので、段階的に絞る）
+            results = self.vectorstore._collection.get(include=["metadatas", "ids"], limit=100000)
+            metadatas = results.get("metadatas", []) or []
+            ids = results.get("ids", []) or []
+
+            delete_ids = []
+            for item_id, md in zip(ids, metadatas):
+                src = (md or {}).get("source", "")
+                # ファイル名ベースで判定
+                base = os.path.basename(str(src))
+                if keep_filename_contains not in base:
+                    delete_ids.append(item_id)
+
+            if not delete_ids:
+                return {"status": "success", "message": "削除対象はありません", "deleted": 0}
+
+            # 実削除
+            self.vectorstore._collection.delete(ids=delete_ids)
+            return {"status": "success", "message": f"{len(delete_ids)} 件を削除しました", "deleted": len(delete_ids)}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}

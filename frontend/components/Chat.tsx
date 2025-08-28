@@ -143,7 +143,7 @@ export default function Chat() {
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder="質問を入力してください..."
             disabled={isLoading}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder-gray-400"
           />
           <button
             type="submit"

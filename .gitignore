@@ -1,10 +1,38 @@
-# Node.js 用
+# === Node.js / Next.js ===
 node_modules/
-npm-debug.log
-yarn-debug.log*
-yarn-error.log*
-# ビルド成果物
+.next/
+out/
 dist/
 build/
-# 環境変数ファイル（秘密情報）
+.turbo/
+.vercel/
+
+# === Python ===
+venv/
+.venv/
+ENV/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# backend 配下に仮想環境がある場合
+backend/venv/
+backend/.venv/
+
+# === 環境変数 ===
 .env
+.env.*
+!.env.example
+
+# === OS / Editor ===
+.DS_Store
+*.swp
+
+# === RAG/データ（必要に応じて）===
+data/
+chroma/
+chromadb/

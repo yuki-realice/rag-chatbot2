@@ -10,3 +10,34 @@
  ○ Compiling / ...
  ✓ Compiled / in 1574ms (442 modules)
  ✓ Compiled in 64ms (225 modules)
+ ✓ Compiled in 535ms (433 modules)
+ ✓ Compiled in 66ms (433 modules)
+ ✓ Compiled /not-found in 260ms (424 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/yuki/Desktop/rag chatbot2/frontend/.next/server/vendor-chunks/@swc.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/@swc' in /Users/yuki/Desktop/rag chatbot2/frontend/.next/server for build dependencies doesn't lead to expected result '/Users/yuki/Desktop/rag chatbot2/frontend/.next/server/vendor-chunks/@swc.js', but to 'Error: Can't resolve './vendor-chunks/@swc' in '/Users/yuki/Desktop/rag chatbot2/frontend/.next/server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/@swc (expected /Users/yuki/Desktop/rag chatbot2/frontend/.next/server/vendor-chunks/@swc.js)
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/.next/server/webpack-runtime.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/.next/server/webpack-runtime.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/.next/server/app/not-found.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/.next/server/app/not-found.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/server/require.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/server/require.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/server/load-components.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/server/load-components.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/utils.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/webpack/loaders/next-app-loader.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/webpack/loaders/next-app-loader.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/compiled/webpack/bundle5.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/compiled/webpack/bundle5.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/compiled/webpack/webpack.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/compiled/webpack/webpack.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/webpack/plugins/define-env-plugin.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/webpack/plugins/define-env-plugin.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/swc/index.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/swc/index.js
+<w>  at file dependencies /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at file /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at resolve commonjs /Users/yuki/Desktop/rag chatbot2/frontend/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js

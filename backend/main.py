@@ -15,7 +15,12 @@ app = FastAPI(title="RAG Chatbot API", version="1.0.0")
 # CORS設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -112,6 +117,26 @@ async def chat(request: ChatRequest):
         result = rag_service.chat(request.message)
         return ChatResponse(**result)
         
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class PruneRequest(BaseModel):
+    keep_contains: str
+
+class PruneResponse(BaseModel):
+    status: str
+    message: str
+    deleted: Optional[int] = None
+
+@app.post("/prune-index", response_model=PruneResponse)
+async def prune_index(req: PruneRequest):
+    """指定文字列を含むファイル名以外のインデックスを削除"""
+    try:
+        if not req.keep_contains:
+            raise HTTPException(status_code=400, detail="keep_contains is required")
+        result = rag_service.prune_index_except(req.keep_contains)
+        return PruneResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
