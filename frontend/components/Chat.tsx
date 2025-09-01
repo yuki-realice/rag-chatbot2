@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ChatMessage, Source } from '../types';
-import { apiClient } from '../lib/api';
+import { chat } from '../lib/api';
 
 export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -34,7 +34,7 @@ export default function Chat() {
     setIsLoading(true);
 
     try {
-      const response = await apiClient.chat(inputMessage);
+      const response = await chat(inputMessage);
       
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { apiClient } from '../lib/api';
+import { ingestExcel } from '../lib/api';
 
 interface UploaderProps {
   onUploadSuccess: () => void;
@@ -20,8 +20,20 @@ export default function Uploader({ onUploadSuccess }: UploaderProps) {
     setMessage('');
 
     try {
-      const response = await apiClient.uploadFile(file);
-      setMessage(`✅ ${response.message}`);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.error || result?.message || 'アップロードに失敗しました');
+      }
+
+      setMessage(`✅ ${result.message}`);
       onUploadSuccess();
     } catch (error) {
       setMessage(`❌ アップロードエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -35,11 +47,37 @@ export default function Uploader({ onUploadSuccess }: UploaderProps) {
     setMessage('');
 
     try {
-      const response = await apiClient.ingestDocuments();
-      setMessage(`✅ ${response.message}`);
+      const response = await fetch('/api/ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.error || result?.message || 'インデックス化に失敗しました');
+      }
+
+      setMessage(`✅ ${result.message}`);
       onUploadSuccess();
     } catch (error) {
       setMessage(`❌ インデックス化エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  const handleIngestExcel = async () => {
+    setIsIngesting(true);
+    setMessage('');
+
+    try {
+      const result = await ingestExcel();
+      setMessage(`✅ ${result.message}`);
+      onUploadSuccess();
+    } catch (error) {
+      setMessage(`❌ Excel インデックス化エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsIngesting(false);
     }
@@ -69,13 +107,20 @@ export default function Uploader({ onUploadSuccess }: UploaderProps) {
       </div>
 
       {/* インデックス再作成 */}
-      <div className="mb-4">
+      <div className="mb-4 space-y-2">
         <button
           onClick={handleIngest}
           disabled={isIngesting}
           className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-md transition-colors"
         >
-          {isIngesting ? 'インデックス化中...' : 'インデックス再作成'}
+          {isIngesting ? 'インデックス化中...' : 'アップロードファイルをインデックス化'}
+        </button>
+        <button
+          onClick={handleIngestExcel}
+          disabled={isIngesting}
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-md transition-colors"
+        >
+          {isIngesting ? 'Excel 取り込み中...' : 'Excel ファイルを取り込み'}
         </button>
       </div>
 
