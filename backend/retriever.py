@@ -142,13 +142,9 @@ class EnhancedRetriever:
                 where_filter = {"row_id": row_id_filter}
                 print(f"INFO: ベクトル検索でrow_id={row_id_filter}によるフィルタリングを適用")
             elif company_filter:
-                where_filter = {
-                    "$or": [
-                        {"company": {"$eq": company_filter}},
-                        {"company_alias": {"$eq": company_filter}},
-                        {"url_domain": {"$eq": company_filter}}
-                    ]
-                }
+                # 会社名の順序・表記ゆれで検索結果を落とさないため、ベクター側の厳密フィルタは外す
+                # （BM25側の事前フィルタと最終リランキングで十分に絞り込む）
+                where_filter = None
             docs = self.vectorstore.max_marginal_relevance_search(
                 query,
                 k=top_k,

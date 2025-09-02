@@ -2,33 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Appleライク: ベースカラー/タイポ/ガラス/控えめな影 */
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --bg: #0b0b0d;
+  --panel: rgba(255,255,255,0.06);
+  --panel-border: rgba(255,255,255,0.12);
+  --text: #0b0b0d;         /* ← 黒系に変更 */
+  --text-dim: #444;        /* ← 少し濃いグレーに */
+  --accent: #0a84ff;
+  --accent-ink: #0b1220;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
-}
+html, body { height: 100%; }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background:
+    radial-gradient(1200px 400px at 50% -20%, rgba(255,255,255,0.08), transparent 60%),
+    linear-gradient(180deg, #0b0b0d 0%, #0f1014 100%);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* 入力（黒文字＋白背景） */
+.input {
+  @apply w-full text-[15px];
+  background: #ffffff;                  /* ← 白背景 */
+  color: #0b0b0d;                       /* ← 黒文字 */
+  border: 1px solid #d1d5db;            /* 明るめボーダー */
+  border-radius: 14px;
+  padding: 12px 14px;
+  transition: box-shadow .2s ease, border-color .2s ease, background .2s ease, color .2s ease;
+}
+.input::placeholder { color: #666; }    /* ← 濃いグレーに */
+.input:focus {
+  outline: none;
+  border-color: rgba(10,132,255,0.55);
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.18);
+  background: #ffffff;
+  color: #0b0b0d;
 }
 
+/* ボタンは変更なし（任意でそのまま） */
+
+/* バッジ（参考: 変更なし） */
+.badge {
+  font-size: 12px;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.04);
+  color: #0b0b0d;                        /* ← バッジ文字も黒系 */
+}
+
+/* スクロールバー控えめ（変更なし） */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 8px; }

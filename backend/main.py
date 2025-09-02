@@ -316,7 +316,8 @@ async def enhanced_chat_with_retry(message: str, max_retries: int = 3) -> Dict[s
             sources = []
             for i, doc in enumerate(docs, 1):
                 company = doc.metadata.get("company", "Unknown")
-                lead_status = doc.metadata.get("lead_status", "未設定")
+                # 空文字の場合も「未設定」にフォールバック
+                lead_status = doc.metadata.get("lead_status") or "未設定"
                 
                 # 行統合ドキュメントの場合
                 if doc.metadata.get("row_type") == "integrated_row":
