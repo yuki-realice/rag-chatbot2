@@ -408,7 +408,7 @@ async def ingest_excel():
             )
         
         # Excel ファイルパスの構築
-        excel_path = Path(config.DATA_DIR) / "docs" / "rag用_架電リスト.xlsx"
+        excel_path = Path(config.DATA_DIR) / "rag用_架電リスト.xlsx"
         
         if not excel_path.exists():
             return JSONResponse(
@@ -465,7 +465,7 @@ async def get_company_by_cell(cell: str):
             raise HTTPException(status_code=400, detail=str(e))
         
         # Excelファイルを読み込み
-        excel_path = Path(config.DATA_DIR) / "docs" / "rag用_架電リスト.xlsx"
+        excel_path = Path(config.DATA_DIR) / "rag用_架電リスト.xlsx"
         if not excel_path.exists():
             raise HTTPException(status_code=404, detail=f"Excelファイルが見つかりません: {excel_path}")
         

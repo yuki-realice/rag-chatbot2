@@ -290,8 +290,8 @@ class ExcelIngestor:
                 # セル固有のID作成
                 cell_id = f"{sheet_name}_row_{excel_row_num}_col_{col_idx}_{col_name.replace(' ', '_')}"
                 
-                # セルデータ作成
-                cell_content = f"{col_name}: {str_value}"
+                # セルデータ作成（詳細情報を含める）
+                cell_content = f"【行{excel_row_num}】企業名: {company} | リードステータス: {lead_status} | {col_name}: {str_value}"
                 
                 cell_data = {
                     "row_id": cell_id,

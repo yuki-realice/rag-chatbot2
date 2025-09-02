@@ -12,6 +12,7 @@ from langchain_community.vectorstores import Chroma
 from .config import Config
 import pandas as pd
 from .gemini import GeminiEmbeddings
+from .retriever import EnhancedRetriever
 
 class RAGService:
     def __init__(self):
@@ -46,6 +47,9 @@ class RAGService:
             chunk_overlap=self.config.RAG_CHUNK_OVERLAP,
             length_function=self._simple_len,
         )
+        
+        # EnhancedRetrieverを追加
+        self.enhanced_retriever = EnhancedRetriever()
     
     def _simple_len(self, text: str) -> int:
         return len(text)
@@ -224,9 +228,9 @@ class RAGService:
         try:
             candidate_k = max(self.config.RAG_CANDIDATE_K, self.config.RAG_TOP_K)
             if getattr(self.config, "RAG_USE_MMR", True):
-                docs = self.vectorstore.max_marginal_relevance_search(message, k=self.config.RAG_TOP_K, fetch_k=candidate_k, lambda_mult=self.config.RAG_MMR_DIVERSITY)
+                docs = self.enhanced_retriever.hybrid_search(message, top_k=self.config.RAG_TOP_K)
             else:
-                docs = self.vectorstore.similarity_search(message, k=candidate_k)
+                docs = self.enhanced_retriever.hybrid_search(message, top_k=candidate_k)
             
             try:
                 stats = self.vectorstore._collection.count()
@@ -234,9 +238,9 @@ class RAGService:
                     ingest_result = self.ingest_documents()
                     candidate_k = max(self.config.RAG_CANDIDATE_K, self.config.RAG_TOP_K)
                     if getattr(self.config, "RAG_USE_MMR", True):
-                        docs = self.vectorstore.max_marginal_relevance_search(message, k=self.config.RAG_TOP_K, fetch_k=candidate_k, lambda_mult=self.config.RAG_MMR_DIVERSITY)
+                        docs = self.enhanced_retriever.hybrid_search(message, top_k=self.config.RAG_TOP_K)
                     else:
-                        docs = self.vectorstore.similarity_search(message, k=candidate_k)
+                        docs = self.enhanced_retriever.hybrid_search(message, top_k=candidate_k)
                     if not docs:
                         return {"status": "warning", "message": "インデックスが空です。左のアップロード→インデックス再作成を実行してください。", "answer": "該当する情報は見つかりませんでした", "sources": []}
             except Exception:
@@ -307,7 +311,27 @@ class RAGService:
             sources = []
             for doc in selected:
                 source = doc.metadata.get("source", "Unknown")
-                sources.append({"source": source, "content": doc.page_content[:300] + "..." if len(doc.page_content) > 300 else doc.page_content})
+                # 短いcontentの場合は詳細情報を構築
+                content = doc.page_content
+                if "★row_id" in content and len(content.strip()) < 100:
+                    # メタデータから詳細情報を構築
+                    company = doc.metadata.get("company", "不明")
+                    lead_status = doc.metadata.get("lead_status", "未設定")
+                    phone = doc.metadata.get("代表電話", "")
+                    direct_phone = doc.metadata.get("直通番号", "")
+                    memo = doc.metadata.get("社内メモ", "")
+                    call_log = doc.metadata.get("架電ログ", "")
+                    
+                    # 詳細情報を構築
+                    details = [f"企業名: {company}", f"リードステータス: {lead_status}"]
+                    if phone: details.append(f"代表電話: {phone}")
+                    if direct_phone: details.append(f"直通番号: {direct_phone}")
+                    if memo and memo != "nan": details.append(f"社内メモ: {memo}")
+                    if call_log and call_log != "nan": details.append(f"架電ログ: {call_log}")
+                    
+                    content = " | ".join(details)
+
+                sources.append({"source": source, "content": content[:300] + "..." if len(content) > 300 else content})
             
             return {"status": "success", "answer": answer, "sources": sources}
             

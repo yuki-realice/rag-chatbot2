@@ -1,0 +1,32 @@
+[33mWARNING[0m:  [02-09-2025 17:10:45] chroma_server_nofile is set to 65535, but this is less than current soft limit of 1048575. chroma_server_nofile will not be set.
+[32mINFO[0m:     [02-09-2025 17:10:45] Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+[36mDEBUG[0m:    [02-09-2025 17:10:45] Starting component System
+[36mDEBUG[0m:    [02-09-2025 17:10:45] Starting component OpenTelemetryClient
+[36mDEBUG[0m:    [02-09-2025 17:10:45] Starting component SimpleAssignmentPolicy
+[36mDEBUG[0m:    [02-09-2025 17:10:45] Starting component SqliteDB
+[36mDEBUG[0m:    [02-09-2025 17:10:45] Starting component Posthog
+[36mDEBUG[0m:    [02-09-2025 17:10:45] Starting component LocalSegmentManager
+[36mDEBUG[0m:    [02-09-2025 17:10:45] Starting component SegmentAPI
+[32mINFO[0m:     [02-09-2025 17:10:45] Started server process [[36m60368[0m]
+[32mINFO[0m:     [02-09-2025 17:10:45] Waiting for application startup.
+[32mINFO[0m:     [02-09-2025 17:10:45] Application startup complete.
+[31mERROR[0m:    [02-09-2025 17:10:45] [Errno 48] error while attempting to bind on address ('0.0.0.0', 8000): address already in use
+[32mINFO[0m:     [02-09-2025 17:10:45] Waiting for application shutdown.
+[32mINFO[0m:     [02-09-2025 17:10:45] Application shutdown complete.
+[33mWARNING[0m:  [02-09-2025 17:11:20] chroma_server_nofile is set to 65535, but this is less than current soft limit of 1048575. chroma_server_nofile will not be set.
+[32mINFO[0m:     [02-09-2025 17:11:20] Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+[36mDEBUG[0m:    [02-09-2025 17:11:20] Starting component System
+[36mDEBUG[0m:    [02-09-2025 17:11:20] Starting component OpenTelemetryClient
+[36mDEBUG[0m:    [02-09-2025 17:11:20] Starting component SimpleAssignmentPolicy
+[36mDEBUG[0m:    [02-09-2025 17:11:20] Starting component SqliteDB
+[36mDEBUG[0m:    [02-09-2025 17:11:20] Starting component Posthog
+[36mDEBUG[0m:    [02-09-2025 17:11:20] Starting component LocalSegmentManager
+[36mDEBUG[0m:    [02-09-2025 17:11:20] Starting component SegmentAPI
+[32mINFO[0m:     [02-09-2025 17:11:20] Started server process [[36m61853[0m]
+[32mINFO[0m:     [02-09-2025 17:11:20] Waiting for application startup.
+[32mINFO[0m:     [02-09-2025 17:11:20] Application startup complete.
+[32mINFO[0m:     [02-09-2025 17:11:20] Uvicorn running on [1mhttp://0.0.0.0:8000[0m (Press CTRL+C to quit)
+[32mINFO[0m:     [02-09-2025 17:11:26] 127.0.0.1:51758 - "GET /api/v1/heartbeat HTTP/1.1" 200
+[32mINFO[0m:     [02-09-2025 17:11:29] 127.0.0.1:51760 - "GET /api/v1/collections HTTP/1.1" 200
+[32mINFO[0m:     [02-09-2025 17:11:53] 127.0.0.1:51776 - "POST /api/ask HTTP/1.1" 404
+[32mINFO[0m:     [02-09-2025 17:11:59] 127.0.0.1:51778 - "POST /api/ask HTTP/1.1" 404

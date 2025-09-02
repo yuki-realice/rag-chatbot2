@@ -15,6 +15,7 @@ import chromadb
 
 from .config import Config
 from .gemini import GeminiEmbeddings
+from .utils.name_normalize import to_katakana
 
 
 class EnhancedRetriever:
@@ -143,10 +144,9 @@ class EnhancedRetriever:
             elif company_filter:
                 where_filter = {
                     "$or": [
-                        {"company": {"$contains": company_filter}},
-                        {"company_alias": {"$contains": company_filter}},
-                        {"url_domain": {"$contains": company_filter}},
-                        {"$contains": company_filter}
+                        {"company": {"$eq": company_filter}},
+                        {"company_alias": {"$eq": company_filter}},
+                        {"url_domain": {"$eq": company_filter}}
                     ]
                 }
             docs = self.vectorstore.max_marginal_relevance_search(
@@ -263,8 +263,8 @@ class EnhancedRetriever:
             'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
         ))
         
-        # カタカナをひらがなに統一（検索時の一致率向上）
-        query = self._katakana_to_hiragana(query)
+        # ひらがなをカタカナに統一（インデックス時と統一）
+        query = to_katakana(query)
         
         # 不要な記号・空白を除去
         query = re.sub(r'[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]', '', query)
@@ -446,7 +446,7 @@ class EnhancedRetriever:
         try:
             # その行の全セルを検索
             collection = self.vectorstore._collection
-            where_clause = {"excel_row": excel_row, "sheet": sheet_name}
+            where_clause = {"excel_row": excel_row}
             
             results = collection.get(
                 where=where_clause,
