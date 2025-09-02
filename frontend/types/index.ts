@@ -4,6 +4,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   timestamp: Date;
   sources?: Source[];
+  items?: CompanyInfo[] // ← 追加
 }
 
 export interface Source {
@@ -11,23 +12,18 @@ export interface Source {
   content: string;
 }
 
+export interface CompanyInfo { // ← 追加
+  company: string;
+  lead_status: string;
+  source_id: string;
+}
+
 export interface ChatResponse {
   status: string;
   answer?: string;
   sources?: Source[];
+  items?: CompanyInfo[]; // ← 追加
   message?: string;
 }
 
-export interface IngestResponse {
-  status: string;
-  message: string;
-  processed_files?: string[];
-  total_chunks?: number;
-}
-
-export interface UploadResponse {
-  status: string;
-  message: string;
-  filename?: string;
-}
-
+// 既存の他の型はそのまま

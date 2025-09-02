@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ChatMessage, Source } from '../types';
-import { chat } from '../lib/api';
+import { chat, getLeadStatusClass } from '../lib/api'; // ← getLeadStatusClass を追加
 
 export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -42,6 +42,7 @@ export default function Chat() {
         role: 'assistant',
         timestamp: new Date(),
         sources: response.sources,
+        items: response.items, // ← 追加
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -95,7 +96,29 @@ export default function Chat() {
               >
                 <div className="whitespace-pre-wrap">{message.content}</div>
                 
-                {/* ソース情報 */}
+                {/* 抽出企業情報（企業名 + リードステータス） */}
+                {message.items && message.items.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-300">
+                    <p className="text-xs font-semibold mb-2">抽出企業情報:</p>
+                    <div className="space-y-1">
+                      {message.items.map((item, index) => (
+                        <div key={`${item.source_id}-${index}`} className="text-xs bg-gray-200 p-2 rounded">
+                          <p className="font-medium">
+                            {item.company}
+                            <span
+                              className={`ml-2 inline-block px-2 py-0.5 text-xs border rounded ${getLeadStatusClass(item.lead_status)}`}
+                            >
+                              {item.lead_status}
+                            </span>
+                          </p>
+                          <p className="text-gray-600">ソース: {item.source_id}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 参考文書 */}
                 {message.sources && message.sources.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-300">
                     <p className="text-xs font-semibold mb-2">参考文書:</p>
@@ -157,4 +180,3 @@ export default function Chat() {
     </div>
   );
 }
-
