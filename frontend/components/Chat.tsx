@@ -79,8 +79,6 @@ export default function Chat() {
             </div>
           ) : (
             messages.map((message) => {
-              const showOnlyItems = message.role === 'assistant' && message.items && message.items.length > 0;
-              const firstItem = showOnlyItems ? message.items![0] : undefined;
               const isUser = message.role === 'user';
               return (
                 <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -93,26 +91,13 @@ export default function Chat() {
                       color: '#0b0b0d',                            /* ← 本文は黒 */
                     }}
                   >
-                    {!showOnlyItems && (
-                      <div className="whitespace-pre-wrap text-[15px] leading-[1.55]" style={{ color: '#0b0b0d' }}>
-                        {message.content}
-                      </div>
-                    )}
+                    {/* LLMの回答を常に表示 */}
+                    <div className="whitespace-pre-wrap text-[15px] leading-[1.55]" style={{ color: '#0b0b0d' }}>
+                      {message.content}
+                    </div>
 
-                    {showOnlyItems && firstItem && (
-                      <div className="whitespace-pre-wrap text-[15px] leading-[1.55]" style={{ color: '#0b0b0d' }}>
-                        この企業名のリードステータスは
-                        <span
-                          className={`ml-2 badge ${getLeadStatusClass(firstItem.lead_status)}`}
-                          style={{ marginRight: 6 }}
-                        >
-                          {firstItem.lead_status}
-                        </span>
-                        です。
-                      </div>
-                    )}
-
-                    {!showOnlyItems && message.sources && message.sources.length > 0 && (
+                    {/* 参考情報がある場合のみ表示 */}
+                    {message.sources && message.sources.length > 0 && (
                       <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
                         <p className="text-[12px] font-medium mb-2" style={{ color: '#444' }}>参考</p>
                         <div className="space-y-1">
