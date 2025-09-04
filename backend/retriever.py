@@ -559,24 +559,77 @@ class EnhancedRetriever:
         try:
             collection = self.vectorstore._collection
             total_count = collection.count()
+            
+            # 既存のカウント処理
             lead_status_counts = {}
             company_counts = {}
+            
+            # 新しく追加するカウント処理
+            sheet_counts = {}
+            column_counts = {}
+            domain_counts = {}
+            row_type_counts = {}
+            company_variant_counts = {}
+            
             all_docs = collection.get(include=["metadatas"])
             metadatas = all_docs.get("metadatas", [])
+            
             for meta in metadatas:
+                # 既存の処理
                 status = meta.get("lead_status", "未設定")
                 lead_status_counts[status] = lead_status_counts.get(status, 0) + 1
                 
                 company = meta.get("company", "Unknown")
                 company_counts[company] = company_counts.get(company, 0) + 1
                 
+                # 新しく追加する処理
+                sheet = meta.get("sheet", "Unknown")
+                sheet_counts[sheet] = sheet_counts.get(sheet, 0) + 1
+                
+                column_name = meta.get("column_name", "Unknown")
+                if column_name and column_name != "Unknown":
+                    column_counts[column_name] = column_counts.get(column_name, 0) + 1
+                
+                url_domain = meta.get("url_domain", "")
+                if url_domain and url_domain != "Unknown":
+                    domain_counts[url_domain] = domain_counts.get(url_domain, 0) + 1
+                
+                row_type = meta.get("row_type", "standard")
+                row_type_counts[row_type] = row_type_counts.get(row_type, 0) + 1
+                
+                # 企業名バリアント数（文字列として保存されているので分割してカウント）
+                variants = meta.get("company_name_variants", "")
+                if variants and variants != "Unknown":
+                    variant_count = len(variants.split("|"))
+                    company_variant_counts[variant_count] = company_variant_counts.get(variant_count, 0) + 1
+            
             # 企業名のトップ10
             top_companies = sorted(company_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+            
+            # シート別のトップ5
+            top_sheets = sorted(sheet_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            
+            # 列別のトップ5
+            top_columns = sorted(column_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            
+            # ドメイン別のトップ5
+            top_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)[:5]
             
             return {
                 "total_documents": total_count, 
                 "lead_status_distribution": lead_status_counts, 
                 "top_companies": top_companies,
+                
+                # 新しく追加する統計情報
+                "sheet_distribution": sheet_counts,
+                "top_sheets": top_sheets,
+                "column_distribution": column_counts,
+                "top_columns": top_columns,
+                "domain_distribution": domain_counts,
+                "top_domains": top_domains,
+                "row_type_distribution": row_type_counts,
+                "company_variant_distribution": company_variant_counts,
+                
                 "search_parameters": {
                     "top_k": self.top_k, 
                     "final_k": self.final_k, 
