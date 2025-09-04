@@ -25,7 +25,7 @@ except ImportError as e:
 
 def analyze_excel_file():
     """Excelファイルの詳細分析"""
-    excel_file = "/Users/yuki/Desktop/rag chatbot2/backend/data/docs/rag用_架電リスト.xlsx"
+    excel_file = "/Users/yuki/Desktop/rag chatbot2/data/docs/rag用_架電リスト.xlsx"
     
     print("=" * 60)
     print("Excelファイル詳細分析")
