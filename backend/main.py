@@ -337,7 +337,8 @@ async def enhanced_chat_with_retry(message: str, max_retries: int = 3) -> Dict[s
                     context_parts.append(f"{i}. 【行{excel_row}の全情報】\n{doc.page_content}")
                 else:
                     # 従来のセル単位ドキュメント
-                    source_id = doc.metadata.get("row_id", f"doc_{i}")
+                    row_id = doc.metadata.get("row_id", f"doc_{i}")
+                    source_id = str(row_id)  # ← ここを修正
                     cell_pos = doc.metadata.get("cell_position_info", "")
                     
                     items.append({

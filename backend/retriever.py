@@ -60,14 +60,15 @@ class EnhancedRetriever:
             )
             
             # 行単位でグループ化
-            row_grouped_docs = self._group_by_row_and_reconstruct(combined_docs, query)
+            # row_grouped_docs = self._group_by_row_and_reconstruct(combined_docs, query)
             
-            final_docs = row_grouped_docs[:self.final_k]
+            # 代わりに元の検索結果をそのまま使用
+            final_docs = combined_docs[:self.final_k]
             
             # 検索デバッグ情報を出力
             self._print_search_debug_info(query, company_filter, final_docs)
             
-            print(f"INFO: ハイブリッド検索完了 - ベクトル: {len(vector_docs)}, BM25: {len(bm25_docs)}, 行統合: {len(row_grouped_docs)}, 最終: {len(final_docs)}")
+            print(f"INFO: ハイブリッド検索完了 - ベクトル: {len(vector_docs)}, BM25: {len(bm25_docs)}, 最終: {len(final_docs)}")
             return final_docs
         except Exception as e:
             print(f"ERROR: ハイブリッド検索エラー: {e}")
