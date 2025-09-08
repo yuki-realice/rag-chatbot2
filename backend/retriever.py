@@ -13,9 +13,9 @@ from pydantic.v1 import SecretStr
 from pathlib import Path
 import chromadb
 
-from .config import Config
-from .gemini import GeminiEmbeddings
-from .utils.name_normalize import to_katakana
+from config import Config
+from gemini import GeminiEmbeddings
+from utils.name_normalize import to_katakana
 
 
 class EnhancedRetriever:

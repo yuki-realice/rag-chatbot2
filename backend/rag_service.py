@@ -9,10 +9,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic.v1 import SecretStr
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_community.vectorstores import Chroma
-from .config import Config
+from config import Config
 import pandas as pd
-from .gemini import GeminiEmbeddings
-from .retriever import EnhancedRetriever
+from gemini import GeminiEmbeddings
+from retriever import EnhancedRetriever
 
 class RAGService:
     def __init__(self):

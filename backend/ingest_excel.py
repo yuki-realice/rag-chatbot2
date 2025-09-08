@@ -18,9 +18,9 @@ import httpx
 import re
 import json
 
-from .config import Config
-from .gemini import GeminiEmbeddings
-from .utils.name_normalize import normalize_name, build_name_variants
+from config import Config
+from gemini import GeminiEmbeddings
+from utils.name_normalize import normalize_name, build_name_variants
 
 
 class ExcelIngestor:

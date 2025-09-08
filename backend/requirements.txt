@@ -14,3 +14,5 @@ langchain-community==0.0.10
 google-generativeai==0.4.1
 langchain-google-genai==0.0.11
 rapidfuzz>=3.0.0
+gunicorn
+httpx

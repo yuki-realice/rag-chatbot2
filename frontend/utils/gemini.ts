@@ -17,9 +17,7 @@ export async function embedText(text: string): Promise<number[]> {
   const genAI = new GoogleGenerativeAI(key);
   const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
 
-  const result = await model.embedContent({
-    content: { parts: [{ text }] },
-  });
+  const result = await model.embedContent(text);
 
   const values = (result as any)?.embedding?.values ?? (result as any)?.embedding?.value;
   if (!values || !Array.isArray(values)) {

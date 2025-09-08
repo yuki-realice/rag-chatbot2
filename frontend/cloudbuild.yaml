@@ -1,0 +1,45 @@
+steps:
+  # Dockerイメージをビルド
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/rag-chatbot-frontend:$BUILD_ID',
+      '-t', 'gcr.io/$PROJECT_ID/rag-chatbot-frontend:latest',
+      '.'
+    ]
+
+  # イメージをContainer Registryにプッシュ
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/rag-chatbot-frontend:$BUILD_ID']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/rag-chatbot-frontend:latest']
+
+  # Cloud Runにデプロイ
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args: [
+      'run', 'deploy', 'rag-chatbot-frontend',
+      '--image', 'gcr.io/$PROJECT_ID/rag-chatbot-frontend:$BUILD_ID',
+      '--region', 'asia-northeast1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--port', '3000',
+      '--memory', '1Gi',
+      '--cpu', '1',
+      '--max-instances', '10',
+      '--set-env-vars', 'NODE_ENV=production'
+    ]
+
+# ビルド成果物
+images:
+  - 'gcr.io/$PROJECT_ID/rag-chatbot-frontend:$BUILD_ID'
+  - 'gcr.io/$PROJECT_ID/rag-chatbot-frontend:latest'
+
+# ビルドオプション
+options:
+  machineType: 'E2_HIGHCPU_8'
+  diskSizeGb: 100
+
+
+

@@ -7,10 +7,10 @@ import os
 import shutil
 from pathlib import Path
 
-from .config import Config
-from .rag_service import RAGService
-from .ingest_excel import ExcelIngestor
-from .retriever import EnhancedRetriever
+from config import Config
+from rag_service import RAGService
+from ingest_excel import ExcelIngestor
+from retriever import EnhancedRetriever
 import time
 import random
 import re
@@ -53,7 +53,7 @@ async def startup_event():
 
 # データディレクトリの作成
 data_dir = Path(config.DATA_DIR)
-data_dir.mkdir(exist_ok=True)
+data_dir.mkdir(parents=True, exist_ok=True)
 
 # Pydanticモデル
 class ChatRequest(BaseModel):
