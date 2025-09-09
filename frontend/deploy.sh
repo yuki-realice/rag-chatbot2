@@ -7,7 +7,7 @@ PROJECT_ID="ragbot-dev-2025-471207"
 BACKEND_URL="https://backend-334537300106.asia-northeast1.run.app/"
 
 # 環境変数を設定
-export NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL
+export NEXT_PUBLIC_BACKEND_URL="https://backend-334537300106.asia-northeast1.run.app"
 
 echo "�� フロントエンドをCloud Runにデプロイ中..."
 

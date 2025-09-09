@@ -7,6 +7,10 @@ import os
 import shutil
 from pathlib import Path
 
+# 追加のインポート
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic.v1 import SecretStr
+
 from config import Config
 from rag_service import RAGService
 from ingest_excel import ExcelIngestor
@@ -209,9 +213,6 @@ async def search(req: SearchRequest):
         ]
 
         # 3) LLMへのプロンプト構築
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        from pydantic.v1 import SecretStr
-        
         if not config.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY が設定されていません")
             

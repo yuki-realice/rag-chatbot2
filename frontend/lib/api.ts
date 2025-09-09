@@ -3,9 +3,82 @@
  * 新しい企業データベース RAG システム用のAPIラッパー
  */
 
+// === エラーハンドリング用の型定義 ===
+
+export interface ApiErrorDetails {
+  message: string;
+  status?: number;
+  code?: string;
+  debug?: string;
+  timestamp?: string;
+  requestId?: string;
+  backendUrl?: string;
+}
+
+export class ApiError extends Error {
+  public status?: number;
+  public code?: string;
+  public debug?: string;
+  public timestamp: string;
+  public requestId?: string;
+  public backendUrl?: string;
+
+  constructor(details: ApiErrorDetails) {
+    super(details.message);
+    this.name = 'ApiError';
+    this.status = details.status;
+    this.code = details.code;
+    this.debug = details.debug;
+    this.timestamp = details.timestamp || new Date().toISOString();
+    this.requestId = details.requestId;
+    this.backendUrl = details.backendUrl;
+  }
+}
+
+// === ユーティリティ関数 ===
+
+function generateRequestId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function getErrorCode(error: any): string {
+  if (error?.code) return error.code;
+  if (error?.name === 'AbortError') return 'TIMEOUT';
+  if (error?.message?.includes('fetch')) return 'NETWORK_ERROR';
+  if (error?.message?.includes('JSON')) return 'PARSE_ERROR';
+  if (error?.status >= 400 && error?.status < 500) return 'CLIENT_ERROR';
+  if (error?.status >= 500) return 'SERVER_ERROR';
+  return 'UNKNOWN_ERROR';
+}
+
+function getLocalizedErrorMessage(error: any): string {
+  const code = getErrorCode(error);
+  
+  switch (code) {
+    case 'TIMEOUT':
+      return 'リクエストがタイムアウトしました。しばらく後に再試行してください。';
+    case 'NETWORK_ERROR':
+      return 'ネットワーク接続エラーが発生しました。インターネット接続を確認してください。';
+    case 'PARSE_ERROR':
+      return 'サーバーからの応答を解析できませんでした。';
+    case 'CLIENT_ERROR':
+      return 'リクエストに問題があります。入力内容を確認してください。';
+    case 'SERVER_ERROR':
+      return 'サーバーでエラーが発生しました。しばらく後に再試行してください。';
+    case 'UNKNOWN_ERROR':
+    default:
+      return '予期しないエラーが発生しました。';
+  }
+}
+
 function assertBackendEnv() {
   if (!process.env.NEXT_PUBLIC_BACKEND_URL) {
-    throw new ApiError({ message: 'NEXT_PUBLIC_BACKEND_URL is missing in .env.local', status: 500 });
+    throw new ApiError({ 
+      message: 'NEXT_PUBLIC_BACKEND_URL is missing in .env.local', 
+      status: 500,
+      code: 'MISSING_ENV_VAR',
+      debug: '環境変数 NEXT_PUBLIC_BACKEND_URL が設定されていません'
+    });
   }
 }
 
@@ -27,6 +100,14 @@ export interface AskResponse {
   meta: Record<string, any>;
 }
 
+export interface ChatResponse {
+  status: string;
+  answer?: string;
+  sources?: Array<{ source: string; content: string }>;
+  items?: CompanyInfo[];
+  message?: string;
+}
+
 export interface IngestResponse {
   status: string;
   message: string;
@@ -39,6 +120,16 @@ export interface UploadResponse {
   status: string;
   message: string;
   filename?: string;
+  size?: number;
+}
+
+export interface StatsResponse {
+  status: string;
+  message: string;
+  total_documents?: number;
+  total_chunks?: number;
+  collection_name?: string;
+  last_updated?: string;
 }
 
 export interface SearchStats {
@@ -64,13 +155,181 @@ export interface SearchByRowRequest {
   row_id?: number;
 }
 
-export interface ApiErrorPayload {
-  message: string;
-  status?: number;
-  details?: string;
+// === API関数 ===
+
+export async function chat(message: string): Promise<ChatResponse> {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  
+  console.log(`🚀 [${requestId}] chat() 関数開始:`, message);
+
+  try {
+    // 環境変数の確認
+    assertBackendEnv();
+    const backend = process.env.NEXT_PUBLIC_BACKEND_URL!;
+    
+    console.log(` [${requestId}] バックエンドにリクエスト送信:`, `${backend}/api/ask`);
+
+    // リクエストの送信
+    const response = await fetch(`${backend}/api/ask`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'User-Agent': 'RAG-Chatbot-Frontend/1.0',
+        'X-Request-ID': requestId
+      },
+      body: JSON.stringify({ message }),
+      // タイムアウト設定
+      signal: AbortSignal.timeout(120000) // 120秒
+    });
+
+    const responseTime = Date.now() - startTime;
+    console.log(`⏱️ [${requestId}] レスポンス時間: ${responseTime}ms`);
+
+    // レスポンスの確認
+    if (!response.ok) {
+      let errorText = '';
+      let errorData: any = {};
+      
+      try {
+        errorText = await response.text();
+        errorData = JSON.parse(errorText);
+      } catch (parseError) {
+        console.warn(`⚠️ [${requestId}] エラーレスポンスの解析に失敗:`, parseError);
+      }
+
+      console.error(`❌ [${requestId}] バックエンドエラー (${response.status}):`, errorData);
+
+      throw new ApiError({
+        message: `HTTP ${response.status}: ${errorData.error || errorData.detail || errorText || 'サーバーエラー'}`,
+        status: response.status,
+        code: getErrorCode({ status: response.status }),
+        debug: errorData.debug || `バックエンドからエラー応答: ${response.status}`,
+        requestId,
+        backendUrl: backend
+      });
+    }
+
+    // レスポンスの解析
+    let ask: AskResponse;
+    try {
+      const responseText = await response.text();
+      ask = JSON.parse(responseText);
+      console.log(`✅ [${requestId}] バックエンド応答受信:`, ask);
+    } catch (parseError) {
+      console.error(`❌ [${requestId}] レスポンス解析エラー:`, parseError);
+      throw new ApiError({
+        message: 'サーバーからの応答を解析できませんでした',
+        status: 500,
+        code: 'PARSE_ERROR',
+        debug: 'バックエンドからの応答が正しいJSON形式ではありません',
+        requestId,
+        backendUrl: backend
+      });
+    }
+
+    // レスポンスの検証
+    if (!ask || typeof ask.status !== 'string') {
+      throw new ApiError({
+        message: 'サーバーからの応答形式が正しくありません',
+        status: 500,
+        code: 'INVALID_RESPONSE',
+        debug: 'AskResponseの形式が期待されるものと異なります',
+        requestId,
+        backendUrl: backend
+      });
+    }
+
+    // ChatResponse形式に変換
+    const data: ChatResponse = {
+      status: ask.status,
+      answer: ask.answer ?? undefined,
+      items: ask.items ?? undefined,
+      sources: ask.sources?.map((s: string) => ({ source: s, content: '' })) ?? undefined,
+      message: ask.message ?? undefined,
+    };
+
+    console.log(`🎉 [${requestId}] チャット処理完了:`, data);
+    return data;
+
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+    console.error(`❌ [${requestId}] chat() 関数エラー:`, error);
+
+    // 既にApiErrorの場合はそのまま再スロー
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    // その他のエラーをApiErrorに変換
+    const errorCode = getErrorCode(error);
+    const localizedMessage = getLocalizedErrorMessage(error);
+
+    throw new ApiError({
+      message: localizedMessage,
+      status: error instanceof Error && 'status' in error ? (error as any).status : undefined,
+      code: errorCode,
+      debug: error instanceof Error ? error.message : 'Unknown error',
+      requestId,
+      backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL
+    });
+  }
 }
 
-// === APIラッパー関数 ===
+export async function ingestExcel(): Promise<IngestResponse> {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  
+  console.log(`🚀 [${requestId}] ingestExcel() 関数開始`);
+
+  try {
+    assertBackendEnv();
+    const backend = process.env.NEXT_PUBLIC_BACKEND_URL!;
+
+    // URLを修正: /api/ingest-excel → /ingest-excel
+    const response = await fetch(`${backend}/ingest-excel`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(600000) // 10分
+    });
+
+    const responseTime = Date.now() - startTime;
+    console.log(`⏱️ [${requestId}] Excel インジェスト時間: ${responseTime}ms`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError({
+        message: `Excel インジェストエラー: HTTP ${response.status}`,
+        status: response.status,
+        code: getErrorCode({ status: response.status }),
+        debug: errorText,
+        requestId,
+        backendUrl: backend
+      });
+    }
+
+    const data = await response.json();
+    console.log(`✅ [${requestId}] Excel インジェスト完了:`, data);
+    return data;
+
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+    console.error(`❌ [${requestId}] ingestExcel() エラー:`, error);
+
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError({
+      message: getLocalizedErrorMessage(error),
+      code: getErrorCode(error),
+      debug: error instanceof Error ? error.message : 'Unknown error',
+      requestId,
+      backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL
+    });
+  }
+}
+
+// === その他のAPI関数 ===
 
 export async function ask(question: string): Promise<AskResponse> {
   try {
@@ -84,201 +343,185 @@ export async function ask(question: string): Promise<AskResponse> {
       const errorText = await response.text();
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
-    const data: AskResponse = await response.json();
-    return data;
+    return await response.json();
   } catch (error) {
-    console.error('Error in ask():', error);
-    throw new ApiError({ message: error instanceof Error ? error.message : 'API呼び出しエラー', status: error instanceof Error && 'status' in error ? (error as any).status : undefined });
+    throw new ApiError({ message: error instanceof Error ? error.message : '検索エラー', status: error instanceof Error && 'status' in error ? (error as any).status : undefined });
   }
 }
 
 export async function uploadFile(file: File): Promise<UploadResponse> {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  
+  console.log(`🚀 [${requestId}] uploadFile() 関数開始:`, file.name);
+
   try {
     assertBackendEnv();
+    const backend = process.env.NEXT_PUBLIC_BACKEND_URL!;
+
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch('/api/upload', {
+
+    const response = await fetch(`${backend}/upload`, {
       method: 'POST',
       body: formData,
+      signal: AbortSignal.timeout(300000) // 5分
     });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-    const data: UploadResponse = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error in uploadFile():', error);
-    throw new ApiError({ message: error instanceof Error ? error.message : 'ファイルアップロードエラー', status: error instanceof Error && 'status' in error ? (error as any).status : undefined });
-  }
-}
 
-export async function ingestExcel(): Promise<IngestResponse> {
-  try {
-    const response = await fetch('/api/reindex', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-    const data: IngestResponse = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error in ingestExcel():', error);
-    throw new ApiError({ message: error instanceof Error ? error.message : 'Excel取り込みエラー', status: error instanceof Error && 'status' in error ? (error as any).status : undefined });
-  }
-}
+    const responseTime = Date.now() - startTime;
+    console.log(`⏱️ [${requestId}] アップロード時間: ${responseTime}ms`);
 
-export async function getSearchStats(): Promise<SearchStats> {
-  try {
-    const response = await fetch('/api/stats', { method: 'GET', headers: { 'Content-Type': 'application/json' } });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      throw new ApiError({
+        message: `アップロードエラー: HTTP ${response.status}`,
+        status: response.status,
+        code: getErrorCode({ status: response.status }),
+        debug: errorText,
+        requestId,
+        backendUrl: backend
+      });
     }
-    const data: SearchStats = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error in getSearchStats():', error);
-    throw new ApiError({ message: error instanceof Error ? error.message : '統計情報取得エラー', status: error instanceof Error && 'status' in error ? (error as any).status : undefined });
-  }
-}
 
-export async function chat(message: string): Promise<any> {
-  try {
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
     const data = await response.json();
+    console.log(`✅ [${requestId}] アップロード完了:`, data);
     return data;
+
   } catch (error) {
-    console.error('Error in chat():', error);
-    throw new ApiError({ message: error instanceof Error ? error.message : 'チャットエラー', status: error instanceof Error && 'status' in error ? (error as any).status : undefined });
+    const responseTime = Date.now() - startTime;
+    console.error(`❌ [${requestId}] uploadFile() エラー:`, error);
+
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError({
+      message: getLocalizedErrorMessage(error),
+      code: getErrorCode(error),
+      debug: error instanceof Error ? error.message : 'Unknown error',
+      requestId,
+      backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL
+    });
   }
 }
 
-export async function getCompanyByCell(cell: string): Promise<CompanyByRowResponse> {
+export async function ingestData(): Promise<IngestResponse> {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  
+  console.log(`🚀 [${requestId}] ingestData() 関数開始`);
+
   try {
-    const response = await fetch(`/api/company/by-cell?cell=${encodeURIComponent(cell)}`, {
+    assertBackendEnv();
+    const backend = process.env.NEXT_PUBLIC_BACKEND_URL!;
+
+    const response = await fetch(`${backend}/ingest`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(600000) // 10分
+    });
+
+    const responseTime = Date.now() - startTime;
+    console.log(`⏱️ [${requestId}] インジェスト時間: ${responseTime}ms`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError({
+        message: `インジェストエラー: HTTP ${response.status}`,
+        status: response.status,
+        code: getErrorCode({ status: response.status }),
+        debug: errorText,
+        requestId,
+        backendUrl: backend
+      });
+    }
+
+    const data = await response.json();
+    console.log(`✅ [${requestId}] インジェスト完了:`, data);
+    return data;
+
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+    console.error(`❌ [${requestId}] ingestData() エラー:`, error);
+
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError({
+      message: getLocalizedErrorMessage(error),
+      code: getErrorCode(error),
+      debug: error instanceof Error ? error.message : 'Unknown error',
+      requestId,
+      backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL
+    });
+  }
+}
+
+export async function getStats(): Promise<StatsResponse> {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  
+  console.log(` [${requestId}] getStats() 関数開始`);
+
+  try {
+    assertBackendEnv();
+    const backend = process.env.NEXT_PUBLIC_BACKEND_URL!;
+
+    const response = await fetch(`${backend}/search-stats`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(30000) // 30秒
     });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-    const data: CompanyByRowResponse = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error in getCompanyByCell():', error);
-    throw new ApiError({ message: error instanceof Error ? error.message : 'セル指定での企業データ取得エラー', status: error instanceof Error && 'status' in error ? (error as any).status : undefined });
-  }
-}
 
-export async function searchByRow(query: string, rowId?: number): Promise<any> {
-  try {
-    const response = await fetch('/api/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, row_id: rowId }),
-    });
+    const responseTime = Date.now() - startTime;
+    console.log(`⏱️ [${requestId}] 統計取得時間: ${responseTime}ms`);
+
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      throw new ApiError({
+        message: `統計取得エラー: HTTP ${response.status}`,
+        status: response.status,
+        code: getErrorCode({ status: response.status }),
+        debug: errorText,
+        requestId,
+        backendUrl: backend
+      });
     }
+
     const data = await response.json();
+    console.log(`✅ [${requestId}] 統計取得完了:`, data);
     return data;
+
   } catch (error) {
-    console.error('Error in searchByRow():', error);
-    throw new ApiError({ message: error instanceof Error ? error.message : '行指定でのRAG検索エラー', status: error instanceof Error && 'status' in error ? (error as any).status : undefined });
+    const responseTime = Date.now() - startTime;
+    console.error(`❌ [${requestId}] getStats() エラー:`, error);
+
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError({
+      message: getLocalizedErrorMessage(error),
+      code: getErrorCode(error),
+      debug: error instanceof Error ? error.message : 'Unknown error',
+      requestId,
+      backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL
+    });
   }
 }
 
 // === ユーティリティ関数 ===
 
-/**
- * リードステータスに応じたCSS クラス名を取得
- */
-export function getLeadStatusClass(leadStatus: string): string {
-  const statusMap: Record<string, string> = {
-    'アポイント獲得': 'bg-green-100 text-green-800 border-green-200',
-    'リード獲得': 'bg-blue-100 text-blue-800 border-blue-200',
-    '未コール': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    '不在': 'bg-gray-100 text-gray-800 border-gray-200',
-    '受付拒否': 'bg-red-100 text-red-800 border-red-200',
-    '不在情報取得あり': 'bg-purple-100 text-purple-800 border-purple-200',
-    'コンタクト結果NG': 'bg-orange-100 text-orange-800 border-orange-200',
-    '未設定': 'bg-gray-50 text-gray-600 border-gray-300',
-  };
-
-  return statusMap[leadStatus] || statusMap['未設定'];
-}
-
-/**
- * リードステータスに応じた表示色を取得
- */
-export function getLeadStatusColor(leadStatus: string): string {
-  const colorMap: Record<string, string> = {
-    'アポイント獲得': 'success',
-    'リード獲得': 'info',
-    '未コール': 'warning',
-    '不在': 'secondary',
-    '受付拒否': 'danger',
-    '不在情報取得あり': 'primary',
-    'コンタクト結果NG': 'warning',
-    '未設定': 'light',
-  };
-
-  return colorMap[leadStatus] || 'light';
-}
-
-/**
- * エラーメッセージの日本語化
- */
-export function getLocalizedErrorMessage(error: any): string {
-  if (error?.reason) {
-    switch (error.reason) {
-      case 'no_context':
-        return '関連する企業情報が見つかりませんでした。別の言い方で質問してみてください。';
-      case 'llm_unavailable':
-        return 'AIサービスが一時的に利用できません。しばらく経ってから再試行してください。';
-      case 'processing_error':
-        return '処理中にエラーが発生しました。';
-      default:
-        return error.message || '予期しないエラーが発生しました。';
-    }
-  }
-
-  if (error?.message) {
-    if (error.message.includes('fetch')) {
-      return 'サーバーとの通信に失敗しました。ネットワーク接続を確認してください。';
-    }
-    if (error.message.includes('timeout')) {
-      return 'タイムアウトしました。しばらく経ってから再試行してください。';
-    }
-    return error.message;
-  }
-
-  return '予期しないエラーが発生しました。';
-}
-
-/**
- * APIエラーのカスタムクラス
- */
-class ApiError extends Error {
-  public status?: number;
-  public details?: string;
-
-  constructor(options: { message: string; status?: number; details?: string }) {
-    super(options.message);
-    this.name = 'ApiError';
-    this.status = options.status;
-    this.details = options.details;
+export function getLeadStatusClass(status: string): string {
+  switch (status?.toLowerCase()) {
+    case 'hot':
+    case 'warm':
+      return 'text-green-600 bg-green-100';
+    case 'cold':
+      return 'text-blue-600 bg-blue-100';
+    case 'dead':
+    case 'lost':
+      return 'text-red-600 bg-red-100';
+    default:
+      return 'text-gray-600 bg-gray-100';
   }
 }
-
-export { ApiError };

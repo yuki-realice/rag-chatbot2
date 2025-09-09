@@ -8,6 +8,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -22,6 +23,9 @@ export default function Chat() {
     e.preventDefault();
     if (!inputMessage.trim() || isLoading) return;
 
+    console.log('🚀 チャット送信開始:', inputMessage);
+    setDebugInfo('送信中...');
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       content: inputMessage,
@@ -34,26 +38,58 @@ export default function Chat() {
     setIsLoading(true);
 
     try {
+      console.log('📡 API呼び出し開始...');
+      setDebugInfo('API呼び出し中...');
+      
       const response = await chat(inputMessage);
+      console.log('✅ API応答受信:', response);
+      setDebugInfo('応答受信完了');
+
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: response.answer || response.message || 'エラーが発生しました',
+        content: response.answer || response.message || '応答が空です',
         role: 'assistant',
         timestamp: new Date(),
         sources: response.sources,
         items: response.items,
       };
+      
       setMessages(prev => [...prev, assistantMessage]);
+      setDebugInfo('');
     } catch (error) {
-      const errorMessage: ChatMessage = {
+      console.error('❌ チャットエラー:', error);
+      
+      let errorMessage = 'Unknown error';
+      let debugMessage = '';
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        debugMessage = `エラー詳細: ${error.message}`;
+      }
+
+      // ネットワークエラーの詳細チェック
+      if (errorMessage.includes('fetch')) {
+        debugMessage += '\nネットワーク接続を確認してください';
+      }
+      if (errorMessage.includes('500')) {
+        debugMessage += '\nサーバーエラーが発生しました';
+      }
+      if (errorMessage.includes('404')) {
+        debugMessage += '\nAPIエンドポイントが見つかりません';
+      }
+
+      const errorChatMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: `エラーが発生しました: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        content: `❌ エラーが発生しました: ${errorMessage}`,
         role: 'assistant',
         timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      
+      setMessages(prev => [...prev, errorChatMessage]);
+      setDebugInfo(debugMessage);
     } finally {
       setIsLoading(false);
+      console.log(' チャット処理完了');
     }
   };
 
@@ -68,6 +104,13 @@ export default function Chat() {
         <div className="p-6">
           <h2 className="text-[20px] font-semibold tracking-[-0.01em]" style={{ color: '#0b0b0d' }}>RAG チャット</h2>
           <p className="text-[13px] mt-1" style={{ color: '#444' }}>企業データベースから正確に抽出します</p>
+          
+          {/* デバッグ情報表示 */}
+          {debugInfo && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs" style={{ color: '#666' }}>
+              <strong>デバッグ:</strong> {debugInfo}
+            </div>
+          )}
         </div>
         <div className="hr" />
 
@@ -85,10 +128,10 @@ export default function Chat() {
                   <div
                     className="max-w-[78%] rounded-2xl px-4 py-3 border"
                     style={{
-                      background: '#ffffff',                      /* ← 明るい背景 */
+                      background: '#ffffff',
                       borderColor: 'rgba(0,0,0,0.10)',
                       boxShadow: '0 6px 18px rgba(0,0,0,0.10)',
-                      color: '#0b0b0d',                            /* ← 本文は黒 */
+                      color: '#0b0b0d',
                     }}
                   >
                     {/* LLMの回答を常に表示 */}
@@ -138,7 +181,7 @@ export default function Chat() {
               disabled={isLoading || !inputMessage.trim()}
               className="btn-primary"
             >
-              送信
+              {isLoading ? '送信中...' : '送信'}
             </button>
           </form>
         </div>
