@@ -1,0 +1,25 @@
+substitutions:
+  _SERVICE: "backend"
+  _REGION: "asia-northeast1"
+  _IMAGE: "gcr.io/$PROJECT_ID/backend"
+  _DOCKER_CONTEXT: "backend"
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "${_IMAGE}:$SHORT_SHA", "${_DOCKER_CONTEXT}"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "${_IMAGE}:$SHORT_SHA"]
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      [
+        "run","deploy","${_SERVICE}",
+        "--image","${_IMAGE}:$SHORT_SHA",
+        "--region","${_REGION}",
+        "--allow-unauthenticated"
+      ]
+
+images:
+  - "${_IMAGE}:$SHORT_SHA"

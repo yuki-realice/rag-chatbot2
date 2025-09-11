@@ -22,18 +22,26 @@ import pandas as pd
 
 app = FastAPI(title="RAG Chatbot API", version="1.0.0")
 
-# CORS設定
+# =========================
+# CORS 設定（本番 + ローカル）
+# =========================
+ALLOWED_ORIGINS = [
+    # 本番フロント（Cloud Run）
+    "https://rag-chatbot-frontend-334537300106.asia-northeast1.run.app",
+    # ローカル開発
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,              # 必要に応じてステージングのURLも追加
+    allow_credentials=True,                     # Cookie不要なら False でも可
+    allow_methods=["GET", "POST", "OPTIONS"],   # OPTIONS を必ず含める
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],            # 返したい独自ヘッダがあれば
 )
 
 # 設定とサービスの初期化
@@ -116,12 +124,9 @@ def parse_row_from_cell(cell: str) -> int:
     """
     if not cell:
         raise ValueError("セル参照が空です")
-    
-    # 文字と数字を分離（例：A2 -> ['A', '2']）
     match = re.match(r'^([A-Z]+)(\d+)$', cell.upper())
     if not match:
         raise ValueError(f"不正なセル参照形式: {cell}")
-    
     col_letters, row_str = match.groups()
     try:
         row_num = int(row_str)
@@ -152,17 +157,14 @@ async def upload_file(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Filename is required")
         filename = cast(str, file.filename)
 
-        # 本文読み取りと空チェック
         content = await file.read()
         if not content:
             raise HTTPException(status_code=400, detail="File is empty")
 
-        # ファイル拡張子のチェック
         file_extension = Path(filename).suffix.lower()
         if file_extension not in config.ALLOWED_EXTENSIONS:
             raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {config.ALLOWED_EXTENSIONS}")
 
-        # 保存
         file_path = data_dir / filename
         with open(file_path, "wb") as f:
             f.write(content)
@@ -199,11 +201,9 @@ async def search(req: SearchRequest):
         if enhanced_retriever is None:
             return JSONResponse(status_code=500, content={"error": "retriever not initialized"})
 
-        # 1) 類似度検索（緩めの閾値、上位3件）
         docs = enhanced_retriever.hybrid_search(q, row_id_filter=req.row_id, top_k=5, score_threshold=0.60)
         top_docs = docs[:3]
 
-        # 2) レスポンス形成
         results = [
             {
                 "content": d.page_content,
@@ -212,10 +212,8 @@ async def search(req: SearchRequest):
             for d in top_docs
         ]
 
-        # 3) LLMへのプロンプト構築
         if not config.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY が設定されていません")
-            
         llm = ChatGoogleGenerativeAI(
             model=config.GEMINI_CHAT_MODEL,
             google_api_key=SecretStr(config.GEMINI_API_KEY),
@@ -229,17 +227,16 @@ async def search(req: SearchRequest):
         if results:
             context = "\n\n".join([r["content"] for r in results])
             prompt = (
-                "あなたは営業支援AIです。以下の社内ドキュメントに基づいて、ユーザーの質問に日本語で簡潔に回答してください。"\
+                "あなたは営業支援AIです。以下の社内ドキュメントに基づいて、ユーザーの質問に日本語で簡潔に回答してください。"
                 "\n\n【質問】\n" + q + "\n\n【社内ドキュメント】\n" + context + "\n\n【要件】\n- 根拠となる情報のみを使用\n- 不明な点は不明と述べる\n- 箇条書きで要点を整理"
             )
             answer = llm.invoke(prompt).content
             print("INFO: POST /search -> 200 (with results)")
             return {"status": "ok", "results": results, "answer": answer}
         else:
-            # 4) フォールバック（一般知識で補足回答）
             prompt = (
-                "アップロードされたドキュメントから該当情報は見つかりませんでした。"\
-                "以下の質問に対して、一般知識の範囲で日本語で簡潔に補足回答してください。"\
+                "アップロードされたドキュメントから該当情報は見つかりませんでした。"
+                "以下の質問に対して、一般知識の範囲で日本語で簡潔に補足回答してください。"
                 "\n\n【質問】\n" + q + "\n\n【要件】\n- 具体的かつ実用的な提案\n- 根拠が弱い場合は前提条件を明示"
             )
             answer = llm.invoke(prompt).content
@@ -303,12 +300,11 @@ async def prune_index(req: PruneRequest):
 async def enhanced_chat_with_retry(message: str, max_retries: int = 3) -> Dict[str, Any]:
     from langchain_google_genai import ChatGoogleGenerativeAI
     from pydantic.v1 import SecretStr
-    
+
     for attempt in range(max_retries):
         try:
             if enhanced_retriever is None:
                 return {"status": "error", "answer": None, "items": [], "sources": [], "message": "検索サービスが初期化されていません。", "reason": "service_not_initialized", "meta": {"search_attempt": attempt + 1}}
-            # row_idパラメータは将来の拡張用（現在はNone）
             docs = enhanced_retriever.hybrid_search(message, row_id_filter=None)
             if not docs:
                 return {"status": "error", "answer": None, "items": [], "sources": [], "message": "関連する社内ドキュメントが見つかりませんでした。", "reason": "no_context", "meta": {"search_attempt": attempt + 1}}
@@ -317,40 +313,36 @@ async def enhanced_chat_with_retry(message: str, max_retries: int = 3) -> Dict[s
             sources = []
             for i, doc in enumerate(docs, 1):
                 company = doc.metadata.get("company", "Unknown")
-                # 空文字の場合も「未設定」にフォールバック
                 lead_status = doc.metadata.get("lead_status") or "未設定"
-                
-                # 行統合ドキュメントの場合
+
                 if doc.metadata.get("row_type") == "integrated_row":
                     excel_row = doc.metadata.get("excel_row", "?")
                     matched_columns = doc.metadata.get("matched_columns", [])
                     source_id = f"行{excel_row}_統合"
-                    
+
                     items.append({
-                        "company": company, 
-                        "lead_status": lead_status, 
+                        "company": company,
+                        "lead_status": lead_status,
                         "source_id": source_id,
                         "row_info": f"行{excel_row}（マッチ列: {', '.join(matched_columns)}）"
                     })
                     sources.append(f"{company} - 行{excel_row} ({lead_status})")
-                    
-                    # 行全体の内容を表示（マッチした列を強調）
                     context_parts.append(f"{i}. 【行{excel_row}の全情報】\n{doc.page_content}")
                 else:
-                    # 従来のセル単位ドキュメント
                     row_id = doc.metadata.get("row_id", f"doc_{i}")
-                    source_id = str(row_id)  # ← ここを修正
+                    source_id = str(row_id)
                     cell_pos = doc.metadata.get("cell_position_info", "")
-                    
+
                     items.append({
-                        "company": company, 
-                        "lead_status": lead_status, 
+                        "company": company,
+                        "lead_status": lead_status,
                         "source_id": source_id,
                         "cell_info": cell_pos
                     })
                     sources.append(f"{company} - {cell_pos} ({lead_status})")
                     context_parts.append(f"{i}. {doc.page_content}")
             context = "\n".join(context_parts)
+
             system_instruction = """あなたは営業支援AIアシスタントです。架電リストの企業データベースから情報を抽出し、営業活動を支援してください。
 
 【重要な指示】
@@ -373,12 +365,12 @@ async def enhanced_chat_with_retry(message: str, max_retries: int = 3) -> Dict[s
             if not config.GEMINI_API_KEY:
                 raise ValueError("GEMINI_API_KEY が設定されていません")
             llm = ChatGoogleGenerativeAI(
-                model=config.GEMINI_CHAT_MODEL, 
-                google_api_key=SecretStr(config.GEMINI_API_KEY), 
-                temperature=0.2, 
-                top_p=0.9, 
-                client_options=None, 
-                transport=None, 
+                model=config.GEMINI_CHAT_MODEL,
+                google_api_key=SecretStr(config.GEMINI_API_KEY),
+                temperature=0.2,
+                top_p=0.9,
+                client_options=None,
+                transport=None,
                 client=None
             )
             response = llm.invoke(f"{system_instruction}\n\n{user_prompt}")
@@ -399,7 +391,6 @@ async def enhanced_chat_with_retry(message: str, max_retries: int = 3) -> Dict[s
                 return {"status": "error", "answer": None, "items": [], "sources": [], "message": f"処理中にエラーが発生しました: {error_msg}", "reason": "processing_error", "meta": {"error": error_msg}}
     return {"status": "error", "answer": None, "items": [], "sources": [], "message": "予期しないエラーが発生しました", "reason": "unknown_error", "meta": {}}
 
-
 @app.post("/ingest-excel")
 async def ingest_excel():
     """Excel ファイルをインデックス化"""
@@ -409,29 +400,22 @@ async def ingest_excel():
                 status_code=500,
                 content={"error": "Excel ingestor not initialized", "detail": "Service initialization failed"}
             )
-        
-        # Excel ファイルパスの構築
+
         excel_path = Path(config.DATA_DIR) / "rag用_架電リスト.xlsx"
-        
         if not excel_path.exists():
             return JSONResponse(
                 status_code=404,
                 content={"error": "Excel file not found", "detail": f"Excel ファイルが見つかりません: {excel_path}"}
             )
-        
-        # Excel データの取り込み（最初のシートを自動選択）
-        result = excel_ingestor.ingest_excel_file(
-            str(excel_path)
-        )
-        
+
+        result = excel_ingestor.ingest_excel_file(str(excel_path))
         return result
-        
+
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={"error": "Excel ingestion failed", "detail": str(e)}
         )
-
 
 @app.get("/search-stats")
 async def get_search_stats():
@@ -442,7 +426,6 @@ async def get_search_stats():
                 status_code=500,
                 content={"error": "Enhanced retriever not initialized", "detail": "Service initialization failed"}
             )
-        
         stats = enhanced_retriever.get_search_statistics()
         return stats
     except Exception as e:
@@ -455,32 +438,24 @@ async def get_search_stats():
 async def get_company_by_cell(cell: str):
     """
     セル参照（例：A2）から企業データを取得
-    Args:
-        cell: セル参照文字列（例："A2", "B10"）
-    Returns:
-        その行の企業データ
     """
     try:
-        # セル参照から行番号を抽出
         try:
             row_id = parse_row_from_cell(cell)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        
-        # Excelファイルを読み込み
+
         excel_path = Path(config.DATA_DIR) / "rag用_架電リスト.xlsx"
         if not excel_path.exists():
             raise HTTPException(status_code=404, detail=f"Excelファイルが見つかりません: {excel_path}")
-        
+
         try:
-            # Excelファイルを読み込み（結合セル対応）
             df_raw = pd.read_excel(str(excel_path), engine='openpyxl', dtype=str, header=None)
             df_raw = df_raw.fillna("")
-            
+
             if len(df_raw) < 2:
                 raise HTTPException(status_code=400, detail="Excelファイルのデータが不十分です")
-            
-            # ヘッダー処理
+
             header_row = df_raw.iloc[0].tolist()
             processed_header = []
             for i, cell_value in enumerate(header_row):
@@ -489,31 +464,25 @@ async def get_company_by_cell(cell: str):
                 else:
                     col_letter = chr(ord('A') + i)
                     processed_header.append(f"列{col_letter}")
-            
-            # データ部分を取得（2行目以降）
+
             df = df_raw.iloc[1:].copy()
             df.columns = processed_header
-            
-            # row_id列を付与
+
             df = df.reset_index().assign(row_id=lambda d: d.index + 2)
-            
-            # 指定された行番号のデータを検索
             matching_rows = df[df['row_id'] == row_id]
-            
+
             if matching_rows.empty:
                 raise HTTPException(status_code=404, detail=f"行番号 {row_id} のデータが見つかりません")
-            
-            # 最初にマッチした行を取得
+
             row_data = matching_rows.iloc[0]
-            
-            # 結果を辞書形式で整理
+
             company_data = {}
             for col_name in df.columns:
-                if col_name != 'index':  # reset_indexで作られたindexカラムは除外
+                if col_name != 'index':
                     value = row_data[col_name]
                     if pd.notna(value) and str(value).strip() and str(value) != 'nan':
                         company_data[col_name] = str(value).strip()
-            
+
             print(f"INFO: GET /company/by-cell -> 200 (cell={cell}, row_id={row_id})")
             return CompanyByRowResponse(
                 status="success",
@@ -521,19 +490,17 @@ async def get_company_by_cell(cell: str):
                 row_id=row_id,
                 message=f"行 {row_id} のデータを正常に取得しました"
             )
-            
+
         except Exception as e:
             print(f"ERROR: Excelファイル処理エラー: {e}")
             raise HTTPException(status_code=500, detail=f"Excelファイルの処理中にエラーが発生しました: {str(e)}")
-        
+
     except HTTPException:
         raise
     except Exception as e:
         print(f"ERROR: GET /company/by-cell -> 500 ({e})")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host="0.0.0.0", port=config.BACKEND_PORT, reload=True)
-
