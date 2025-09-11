@@ -1,0 +1,21 @@
+{
+  "extends": [
+    "next/core-web-vitals"
+  ],
+  "rules": {
+    // React関連のルール
+    "react-hooks/exhaustive-deps": "warn",
+    "react/no-unescaped-entities": "off",
+    "react/display-name": "off",
+    
+    // 一般的なルール
+    "no-console": "warn",
+    "no-debugger": "error",
+    "prefer-const": "error",
+    "no-var": "error",
+    
+    // Next.js関連のルール
+    "@next/next/no-img-element": "warn",
+    "@next/next/no-html-link-for-pages": "error"
+  }
+}
