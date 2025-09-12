@@ -1,0 +1,52 @@
+substitutions:
+  _REGION: asia-northeast1
+  _BACKEND_SERVICE: backend
+  _FRONTEND_SERVICE: rag-chatbot-frontend
+  _BACKEND_IMAGE: gcr.io/$PROJECT_ID/backend:$BUILD_ID
+  _FRONTEND_IMAGE: gcr.io/$PROJECT_ID/rag-chatbot-frontend:$BUILD_ID
+  _BACKEND_DIR: backend
+  _FRONTEND_DIR: frontend
+  _BACKEND_URL: https://backend-334537300106.asia-northeast1.run.app  # ←実URLに合わせてOK
+  _CB_MACHINE: E2_HIGHCPU_8
+  _TIMEOUT: '1200s'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: ${_CB_MACHINE}
+timeout: ${_TIMEOUT}
+
+steps:
+  # Backend
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '${_BACKEND_IMAGE}', '${_BACKEND_DIR}']
+  - name: gcr.io/cloud-builders/docker
+    args: ['push', '${_BACKEND_IMAGE}']
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args: ['run','deploy','${_BACKEND_SERVICE}',
+           '--image','${_BACKEND_IMAGE}',
+           '--region','${_REGION}',
+           '--platform','managed',
+           '--allow-unauthenticated']
+
+  # Frontend（NEXT_PUBLIC_ を build-arg で注入）
+  - name: gcr.io/cloud-builders/docker
+    args: [
+      'build',
+      '-t', '${_FRONTEND_IMAGE}',
+      '--build-arg', 'NEXT_PUBLIC_BACKEND_URL=${_BACKEND_URL}',
+      '${_FRONTEND_DIR}'
+    ]
+  - name: gcr.io/cloud-builders/docker
+    args: ['push', '${_FRONTEND_IMAGE}']
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args: ['run','deploy','${_FRONTEND_SERVICE}',
+           '--image','${_FRONTEND_IMAGE}',
+           '--region','${_REGION}',
+           '--platform','managed',
+           '--allow-unauthenticated']
+
+images:
+  - '${_BACKEND_IMAGE}'
+  - '${_FRONTEND_IMAGE}'
